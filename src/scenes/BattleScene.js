@@ -1,6 +1,6 @@
 /**
  * ARQUIVO: src/scenes/BattleScene.js
- * DESCRIÇÃO: Versão Corrigida - Sincronia de Turnos e Botão de Encerrar.
+ * DESCRIÇÃO: Versão Final com IA corrigida e Barras de Vida Flutuantes.
  */
 
 import { GridSystem } from '../systems/GridSystem.js';
@@ -41,7 +41,6 @@ export class BattleScene extends Phaser.Scene {
 
         this.scene.launch('UIScene');
         
-        // --- EVENTOS CRUCIALMENTE SINCRONIZADOS ---
         this.events.off('ui-end-turn'); 
         this.events.on('ui-end-turn', () => this.endPlayerTurn());
         this.events.on('turn-start', (unit) => this.handleTurnStart(unit));
@@ -61,15 +60,43 @@ export class BattleScene extends Phaser.Scene {
         units.forEach((unit, index) => {
             unit.gridX = unit.gridX ?? startCol;
             unit.gridY = unit.gridY ?? 2 + index;
+            unit.isPlayer = isPlayer;
             this.pathfinder.setObstacle(unit.gridX, unit.gridY, true);
 
             const pos = this.grid.getWorldPosition(unit.gridX, unit.gridY);
-            const sprite = this.add.image(pos.x, pos.y, isPlayer ? CLASSES[unit.classKey].sprite : unit.sprite);
+            const spriteKey = isPlayer ? CLASSES[unit.classKey].sprite : unit.sprite;
+            const sprite = this.add.image(pos.x, pos.y, spriteKey);
+            
             sprite.setScale((64 * 0.8) / sprite.height).setOrigin(0.5, 0.8);
             if (!isPlayer) sprite.setFlipX(true);
             unit.sprite = sprite;
             unit.currentHp = unit.stats.hp;
+
+            // Criar container para a barra de vida sobre a cabeça
+            this.createLifeBar(unit);
         });
+    }
+
+    createLifeBar(unit) {
+        const barWidth = 40;
+        const barHeight = 6;
+        const x = unit.sprite.x - barWidth / 2;
+        const y = unit.sprite.y - 70; // Acima da cabeça
+
+        unit.barBg = this.add.rectangle(x, y, barWidth, barHeight, 0x000000).setOrigin(0);
+        unit.barFill = this.add.rectangle(x, y, barWidth, barHeight, 0x00ff00).setOrigin(0);
+    }
+
+    updateLifeBar(unit) {
+        if (!unit.barFill) return;
+        const percent = Phaser.Math.Clamp(unit.currentHp / unit.stats.hp, 0, 1);
+        this.tweens.add({
+            targets: unit.barFill,
+            width: 40 * percent,
+            duration: 200
+        });
+        // Muda cor para vermelho se estiver morrendo
+        if (percent < 0.3) unit.barFill.setFillStyle(0xff0000);
     }
 
     handleTurnStart(unit) {
@@ -83,10 +110,7 @@ export class BattleScene extends Phaser.Scene {
         this.showTurnBanner(unit);
 
         if (unit.isPlayer) {
-            // Garante que o botão apareça assim que o turno começa
-            this.time.delayedCall(100, () => {
-                this.events.emit('ui-enable-turn-button', true);
-            });
+            this.time.delayedCall(100, () => this.events.emit('ui-enable-turn-button', true));
             this.highlightCurrentUnit(unit);
             this.events.emit('ui-update-stats', unit);
         } else {
@@ -98,7 +122,6 @@ export class BattleScene extends Phaser.Scene {
     highlightCurrentUnit(unit) {
         if (this.currentTween) this.currentTween.stop();
         this.party.concat(this.enemies).forEach(u => u.sprite.setTint(0xffffff));
-        
         this.currentTween = this.tweens.add({
             targets: unit.sprite,
             tint: 0x00aaff,
@@ -108,24 +131,51 @@ export class BattleScene extends Phaser.Scene {
         });
     }
 
+    /**
+     * Tenta realizar um ataque se o alvo for válido e estiver no alcance
+     */
+    tryAttack(attacker, target) {
+        // Se o atacante já usou sua ação de ataque neste turno, ignora
+        if (attacker.hasAttacked || target.isDead) return;
+
+        // Calcula a distância entre os dois
+        const dist = Math.abs(attacker.gridX - target.gridX) + Math.abs(attacker.gridY - target.gridY);
+        const range = attacker.range || 1; // Padrão é 1 (corpo a corpo)
+
+        if (dist <= range) {
+            console.log(`${attacker.name} atacando ${target.name}!`);
+            this.executeAttack(attacker, target);
+        } else {
+            console.log("Inimigo muito longe para atacar!");
+            // Opcional: Mostrar um pequeno aviso visual de "Fora de Alcance"
+        }
+    }
+
+    /**
+     * Lógica de clique atualizada para não dar erro
+     */
     handleTileClick(pointer) {
         const currentUnit = this.turnSystem.currentUnit;
+        
+        // Bloqueios de segurança
         if (this.isMoving || !currentUnit || !currentUnit.isPlayer) return;
 
         const { col, row, valid } = this.grid.update(pointer);
         if (!valid) return;
 
+        // 1. Procura se tem alguém no lugar clicado
         const targetUnit = this.enemies.concat(this.party).find(u => u.gridX === col && u.gridY === row && !u.isDead);
 
-        // 1. Se clicou em um Inimigo -> Tenta Atacar
-        if (targetUnit && !targetUnit.isPlayer) {
-            this.tryAttack(currentUnit, targetUnit);
+        if (targetUnit) {
+            if (!targetUnit.isPlayer) {
+                // Se clicou num inimigo -> TENTA ATACAR
+                this.tryAttack(currentUnit, targetUnit);
+            } else if (targetUnit === currentUnit) {
+                // Se clicou no herói da vez -> MOSTRA GRID DE MOVIMENTO
+                this.selectHero(currentUnit);
+            }
         } 
-        // 2. Se clicou no herói da vez -> Mostra área de movimento (se não moveu ainda)
-        else if (targetUnit === currentUnit) {
-            this.selectHero(currentUnit);
-        }
-        // 3. Se já selecionou e clicou no vazio -> Tenta Mover
+        // 2. Se não clicou em ninguém e já tinha selecionado o herói -> TENTA MOVER
         else if (this.selectedHero && !currentUnit.hasMoved) {
             this.tryMoveHero(col, row);
         }
@@ -135,38 +185,33 @@ export class BattleScene extends Phaser.Scene {
         if (hero.hasMoved) return;
         this.selectedHero = hero;
         this.grid.clearHighlights();
-
-        const moveRange = hero.mobility || 3;
-        const reachable = this.pathfinder.getReachableTiles(hero.gridX, hero.gridY, moveRange);
-        
+        const reachable = this.pathfinder.getReachableTiles(hero.gridX, hero.gridY, hero.mobility || 3);
         reachable.forEach(t => this.grid.highlightTile(t.x, t.y, 0x00aaff));
         this.grid.highlightTile(hero.gridX, hero.gridY, 0x00ff00);
-        this.events.emit('ui-update-stats', hero);
     }
 
     tryMoveHero(targetCol, targetRow) {
         const hero = this.selectedHero;
         const path = this.pathfinder.findPath(hero.gridX, hero.gridY, targetCol, targetRow);
-        
         if (path && path.length <= (hero.mobility || 3)) {
             this.moveHeroAlongPath(hero, path);
         }
     }
 
-    moveHeroAlongPath(hero, path) {
+    moveHeroAlongPath(hero, path, callback) {
         this.isMoving = true;
         this.grid.clearHighlights();
         this.pathfinder.setObstacle(hero.gridX, hero.gridY, false);
         hero.hasMoved = true;
-        this.moveNextStep(hero, path, 0);
+        this.moveNextStep(hero, path, 0, callback);
     }
 
-    moveNextStep(hero, path, index) {
+    moveNextStep(hero, path, index, callback) {
         if (index >= path.length) {
             this.isMoving = false;
             this.pathfinder.setObstacle(hero.gridX, hero.gridY, true);
-            // IMPORTANTE: Após mover, não deseleciona o herói para ele poder atacar!
-            this.highlightCurrentUnit(hero);
+            if (hero.isPlayer && !hero.hasAttacked) this.highlightCurrentUnit(hero);
+            if (callback) callback();
             return;
         }
 
@@ -177,62 +222,97 @@ export class BattleScene extends Phaser.Scene {
         hero.gridY = next.y;
 
         this.tweens.add({
-            targets: hero.sprite,
-            x: pos.x, y: pos.y,
+            targets: [hero.sprite, hero.barBg, hero.barFill], // Move a barra junto!
+            x: (target) => target === hero.sprite ? pos.x : pos.x - 20,
+            y: (target) => target === hero.sprite ? pos.y : pos.y - 70,
             duration: 250,
-            onComplete: () => this.moveNextStep(hero, path, index + 1)
+            onComplete: () => this.moveNextStep(hero, path, index + 1, callback)
         });
-    }
-
-    tryAttack(attacker, target) {
-        if (attacker.hasAttacked) return;
-
-        const dist = Math.abs(attacker.gridX - target.gridX) + Math.abs(attacker.gridY - target.gridY);
-        if (dist <= (attacker.range || 1)) {
-            this.executeAttack(attacker, target);
-        } else {
-            console.log("Muito longe para atacar!");
-        }
     }
 
     executeAttack(attacker, target) {
         attacker.hasAttacked = true;
         this.grid.clearHighlights();
+        if (this.currentTween) this.currentTween.stop();
+        attacker.sprite.setTint(0xffffff);
 
         const damage = Math.max(1, (attacker.stats.str || 5) - (target.stats.def || 2));
         target.currentHp -= damage;
+
+        this.showDamageText(target.sprite.x, target.sprite.y, damage);
+        this.updateLifeBar(target); // ATUALIZA BARRINHA
         this.events.emit('ui-update-stats', target);
 
-        // Animação de dano
         this.tweens.add({
             targets: target.sprite,
             x: target.sprite.x + 4,
             yoyo: true, duration: 50, repeat: 3,
             onComplete: () => {
                 if (target.currentHp <= 0) this.handleDeath(target);
-                // Se o herói já moveu e atacou, passa o turno automaticamente
-                if (attacker.hasMoved && attacker.hasAttacked) {
-                    this.time.delayedCall(500, () => this.endPlayerTurn());
+                if (!attacker.isPlayer || (attacker.hasMoved && attacker.hasAttacked)) {
+                    this.time.delayedCall(600, () => this.endPlayerTurn());
                 }
             }
         });
     }
 
+    enemyAI(enemy) {
+        if (enemy.isDead) return this.endPlayerTurn();
+
+        let target = this.party.filter(h => !h.isDead).sort((a,b) => 
+            (Math.abs(enemy.gridX - a.gridX) + Math.abs(enemy.gridY - a.gridY)) - 
+            (Math.abs(enemy.gridX - b.gridX) + Math.abs(enemy.gridY - b.gridY))
+        )[0];
+
+        if (!target) return this.endPlayerTurn();
+
+        const dist = Math.abs(enemy.gridX - target.gridX) + Math.abs(enemy.gridY - target.gridY);
+        const range = enemy.range || 1;
+        
+        if (dist <= range) {
+            this.executeAttack(enemy, target);
+        } else {
+            const vizinhos = [
+                {x: target.gridX, y: target.gridY - 1}, {x: target.gridX, y: target.gridY + 1},
+                {x: target.gridX - 1, y: target.gridY}, {x: target.gridX + 1, y: target.gridY}
+            ];
+            // CORREÇÃO DO ERRO AQUI: USANDO this.pathfinder.isValid
+            const destinosValidos = vizinhos.filter(v => 
+                this.pathfinder.isValid(v.x, v.y) && !this.pathfinder.isBlocked(v.x, v.y)
+            );
+
+            destinosValidos.sort((a,b) => 
+                (Math.abs(enemy.gridX - a.x) + Math.abs(enemy.gridY - a.y)) - 
+                (Math.abs(enemy.gridX - b.x) + Math.abs(enemy.gridY - b.y))
+            );
+
+            if (destinosValidos.length > 0) {
+                const path = this.pathfinder.findPath(enemy.gridX, enemy.gridY, destinosValidos[0].x, destinosValidos[0].y);
+                if (path) {
+                    const actualPath = path.slice(0, enemy.mobility || 3);
+                    this.moveHeroAlongPath(enemy, actualPath, () => {
+                        const newDist = Math.abs(enemy.gridX - target.gridX) + Math.abs(enemy.gridY - target.gridY);
+                        if (newDist <= range) this.executeAttack(enemy, target);
+                        else this.endPlayerTurn();
+                    });
+                } else { this.endPlayerTurn(); }
+            } else { this.endPlayerTurn(); }
+        }
+    }
+
     handleDeath(unit) {
         unit.isDead = true;
         this.pathfinder.setObstacle(unit.gridX, unit.gridY, false);
+        if (unit.barBg) unit.barBg.destroy();
+        if (unit.barFill) unit.barFill.destroy();
         this.tweens.add({ targets: unit.sprite, angle: 90, alpha: 0.5, duration: 500 });
     }
 
     endPlayerTurn() {
         if (this.isMoving) return;
         if (this.currentTween) this.currentTween.stop();
-        this.events.emit('ui-enable-turn-button', false); // Esconde o botão IMEDIATAMENTE
+        this.events.emit('ui-enable-turn-button', false);
         this.turnSystem.nextTurn();
-    }
-
-    enemyAI(enemy) {
-        this.endPlayerTurn(); // Inimigo apenas passa a vez por enquanto
     }
 
     showTurnBanner(unit) {
@@ -240,10 +320,13 @@ export class BattleScene extends Phaser.Scene {
             fontSize: '32px', fontStyle: 'bold', fill: unit.isPlayer ? '#3498db' : '#e74c3c',
             stroke: '#000', strokeThickness: 6
         }).setOrigin(0.5).setDepth(1000);
+        this.tweens.add({ targets: banner, y: 100, alpha: 0, duration: 1500, onComplete: () => banner.destroy() });
+    }
 
-        this.tweens.add({
-            targets: banner, y: 100, alpha: 0, duration: 1500,
-            onComplete: () => banner.destroy()
-        });
+    showDamageText(x, y, amount) {
+        const damageText = this.add.text(x, y - 40, `-${amount}`, {
+            fontSize: '28px', fontStyle: 'bold', fill: '#ff0000', stroke: '#000', strokeThickness: 4
+        }).setOrigin(0.5).setDepth(2000);
+        this.tweens.add({ targets: damageText, y: y - 100, alpha: 0, duration: 1000, onComplete: () => damageText.destroy() });
     }
 }
