@@ -21,3 +21,4 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
+window.game = game; // Torna o jogo acessível globalmente para depuração    

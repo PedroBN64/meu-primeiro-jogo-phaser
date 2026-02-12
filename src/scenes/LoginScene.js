@@ -1,85 +1,112 @@
 /**
- * ARQUIVO: LoginScene.js
- * DESCRIÇÃO: Cena de entrada do jogo. Responsável pelo título e acesso ao menu.
+ * ARQUIVO: src/scenes/LoginScene.js
+ * DESCRIÇÃO: Cena de entrada. Gerencia Novo Jogo, Load Local e Importação de Save.
  */
 
 import { Button } from '../components/Button.js';
+import { SaveSystem } from '../systems/SaveSystem.js';
+import { MercenarySystem } from '../systems/MercenarySystem.js';
 
 export class LoginScene extends Phaser.Scene {
     constructor() {
-        // A 'key' é o identificador único desta cena para o Phaser
         super({ key: 'LoginScene' });
     }
 
-    /**
-     * Carregamento de recursos necessários apenas para esta cena.
-     */
     preload() {
-        // Espaço reservado para carregar backgrounds ou logos futuros
-        // Exemplo: this.load.image('bg_login', 'assets/backgrounds/menu.png');
+        // Espaço para carregar assets do menu no futuro
     }
 
-    /**
-     * Criação e posicionamento dos elementos visuais.
-     */
     create() {
-        // Atalhos para largura e altura da tela configurada no main.js
         const { width, height } = this.scale;
 
-        // --- SEÇÃO 1: FUNDO E DECORAÇÃO ---
-        // Adicionando um retângulo de fundo para dar profundidade
+        // --- SEÇÃO 1: FUNDO ---
         this.add.rectangle(0, 0, width, height, 0x111111).setOrigin(0);
 
-        // --- SEÇÃO 2: TÍTULO DO JOGO ---
-        this.titleText = this.add.text(width / 2, height * 0.3, 'PHASER TACTICS', {
+        // --- SEÇÃO 2: TÍTULO ---
+        this.add.text(width / 2, height * 0.25, 'PHASER TACTICS', {
             fontSize: '48px',
             fill: '#E0E0E0',
             fontStyle: 'bold',
             fontFamily: 'Verdana'
         }).setOrigin(0.5);
 
-        // Subtítulo ou Versão
-        this.add.text(width / 2, height * 0.38, 'Alpha Version 0.1', {
-            fontSize: '14px',
-            fill: '#888888'
+        this.add.text(width / 2, height * 0.33, 'Alpha Version 0.1', {
+            fontSize: '14px', fill: '#888888'
         }).setOrigin(0.5);
 
-        // --- SEÇÃO 3: INTERFACE DE USUÁRIO (BOTÕES) ---
+        // --- SEÇÃO 3: LÓGICA DE SAVE E BOTÕES ---
         
-        // Botão para iniciar a criação de personagem
-        this.btnStart = new Button(
-            this, 
-            width / 2, 
-            height / 2 + 50, 
-            'NOVO JOGO', 
-            () => this.iniciarNovoJogo()
-        );
+        // Inicializa o sistema para verificar se existe save local
+        const saveSystem = new SaveSystem(this);
+        const existeSaveLocal = saveSystem.hasLocalSave();
 
-        // Botão de Opções (apenas visual por enquanto)
-        this.btnOptions = new Button(
-            this, 
-            width / 2, 
-            height / 2 + 120, 
-            'OPÇÕES', 
-            () => console.log('Abrindo Opções...')
-        );
+        // Variável para controlar a altura dos botões dinamicamente
+        let yPos = height / 2; 
+
+        // 1. BOTÃO CONTINUAR (Só aparece se tiver save local)
+        if (existeSaveLocal) {
+            new Button(this, width / 2, yPos, 'CONTINUAR', () => {
+                const dados = saveSystem.loadFromLocal();
+                if (dados) {
+                    console.log("Save Local Carregado!");
+                    this.startGame();
+                }
+            }, { bgColor: 0xe67e22, bgHover: 0xd35400 }); // Laranja
+            
+            yPos += 70; // Empurra o próximo botão para baixo
+        }
+
+        // 2. BOTÃO NOVO JOGO
+        new Button(this, width / 2, yPos, 'NOVO JOGO', () => {
+            // Opcional: saveSystem.clearLocal(); // Se quiser apagar o save antigo ao iniciar um novo
+            this.cameras.main.fadeOut(500);
+            this.cameras.main.once('camerafadeoutcomplete', () => {
+                this.scene.start('CharacterScene'); // Vai para criação de personagem
+            });
+        });
+
+        yPos += 70;
+
+        // 3. BOTÃO IMPORTAR SAVE (Arquivo .json)
+        new Button(this, width / 2, yPos, 'IMPORTAR SAVE', () => {
+            saveSystem.importSaveGame((dados) => {
+                if (dados) this.startGame();
+            });
+        }, { bgColor: 0x8e44ad, bgHover: 0x9b59b6 }); // Roxo
+
+        yPos += 70;
+
+        new Button(this, width / 2, yPos, 'RECRUTAR AMIGO', () => {
+            const mercSystem = new MercenarySystem(this);
+            mercSystem.importMercenary(() => {
+                // Se importou com sucesso, talvez atualizar a tela ou só avisar
+                console.log("Amigo adicionado ao registro!");
+            });
+        }, { bgColor: 0x2980b9 }); // Azul
+
+
+        yPos += 70;
+
+        
+
+        // 4. BOTÃO OPÇÕES
+        new Button(this, width / 2, yPos, 'OPÇÕES', () => {
+            console.log('Abrindo menu de opções...');
+        });
 
         // --- SEÇÃO 4: RODAPÉ ---
         this.add.text(width / 2, height - 30, 'Pressione para interagir', {
-            fontSize: '12px',
-            fill: '#444'
+            fontSize: '12px', fill: '#444'
         }).setOrigin(0.5);
     }
 
     /**
-     * Lógica para transição de cena
+     * Helper para transição suave para a batalha/mapa
      */
-    iniciarNovoJogo() {
-        // Efeito simples de "fade out" da câmera antes de mudar de cena
-        this.cameras.main.fadeOut(500, 0, 0, 0);
-        
+    startGame() {
+        this.cameras.main.fadeOut(500);
         this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-            this.scene.start('CharacterScene');
+            this.scene.start('BattleScene');
         });
     }
 }

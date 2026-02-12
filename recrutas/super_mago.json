@@ -1,0 +1,21 @@
+{
+  "type": "mercenary_card_v1",
+  "name": "Gandalf de Teste",
+  "classKey": "MAGO",
+  "level": 5,
+  "stats": {
+    "hp": 80,
+    "mp": 120,
+    "str": 2,
+    "int": 15,
+    "def": 3,
+    "res": 8,
+    "spd": 5
+  },
+  "mobility": 3,
+  "range": 2,
+  "equipment": {
+    "handRight": "cajado_antigo",
+    "armor": "manto_cinza"
+  }
+}
