@@ -1,7 +1,7 @@
 /**
  * ARQUIVO: src/scenes/UIScene.js
  * DESCRIÇÃO: Interface do usuário (HUD). 
- * CORREÇÃO: Blindagem contra erro 'size' desativando inputs antes da destruição.
+ * ATUALIZAÇÃO: Adicionado botão 'Sair do Mapa' e lógica de fim de batalha.
  */
 
 import { MercenarySystem } from '../systems/MercenarySystem.js';
@@ -14,10 +14,13 @@ export class UIScene extends Phaser.Scene {
     create() {
         const { width, height } = this.scale;
 
-        // --- 1. BOTÃO DE ENCERRAR TURNO ---
+        // --- 1. BOTÃO DE ENCERRAR TURNO (Vermelho - Inferior) ---
         this.btnEndTurn = this.add.text(width - 150, height - 190, '[ ENCERRAR TURNO ]', {
-            fontSize: '18px', fill: '#fff', backgroundColor: '#c0392b',
-            padding: { x: 10, y: 10 }, fontStyle: 'bold'
+            fontSize: '18px',
+            fill: '#fff',
+            backgroundColor: '#c0392b', // Vermelho
+            padding: { x: 10, y: 10 },
+            fontStyle: 'bold'
         })
         .setInteractive({ useHandCursor: true })
         .setVisible(false)
@@ -31,29 +34,31 @@ export class UIScene extends Phaser.Scene {
             this.btnEndTurn.setVisible(false);
         });
 
-        // --- 2. BOTÃO SAIR DO MAPA ---
+        // --- 2. BOTÃO SAIR DO MAPA (Verde - Superior) ---
+        // Só aparece quando vence a batalha
         this.btnExitLevel = this.add.text(width - 150, 20, '[ SAIR DO MAPA ]', {
-            fontSize: '18px', fill: '#fff', backgroundColor: '#27ae60',
-            padding: { x: 10, y: 10 }, fontStyle: 'bold'
+            fontSize: '18px',
+            fill: '#fff',
+            backgroundColor: '#27ae60', // Verde
+            padding: { x: 10, y: 10 },
+            fontStyle: 'bold'
         })
         .setInteractive({ useHandCursor: true })
-        .setVisible(false)
+        .setVisible(false) // Começa invisível
         .setDepth(100);
 
         this.btnExitLevel.on('pointerdown', () => {
-            // BLOQUEIO CRUCIAL: Desativa o input da cena ANTES de qualquer lógica
-            this.input.enabled = false; 
-            this.btnExitLevel.disableInteractive();
-            
             const battleScene = this.scene.get('BattleScene');
             if (battleScene) {
+                // Chama a função que salva o progresso e troca de cena
                 battleScene.finishLevel(); 
             }
         });
 
+        // Configura os ouvintes de ambos os botões
         this.setupButtonEvents();
 
-        // --- 3. PAINEL DE STATUS ---
+        // --- 3. O PAINEL DESLIZANTE ---
         this.panelHeight = 160;
         this.panelContainer = this.add.container(0, height);
         
@@ -94,42 +99,27 @@ export class UIScene extends Phaser.Scene {
         this.isPanelVisible = false;
         this.currentHeroData = null;
         this.setupPanelEvents();
-
-        // --- 6. EVENTO DE ENCERRAMENTO ---
-        this.events.once('shutdown', () => {
-            this.cleanUpUI();
-        });
     }
 
-    cleanUpUI() {
-        this.input.enabled = false; // Mata interatividade no ato
-        this.tweens.killAll();
-        if (this.exportContainer) this.exportContainer.disableInteractive();
-        if (this.btnExitLevel) this.btnExitLevel.disableInteractive();
-
-        const battleScene = this.scene.get('BattleScene');
-        if (battleScene) {
-            battleScene.events.off('ui-enable-turn-button');
-            battleScene.events.off('ui-show-exit');
-            battleScene.events.off('ui-update-stats');
-            battleScene.events.off('ui-clear-stats');
-        }
-    }
+    // --- MÉTODOS AUXILIARES ---
 
     setupButtonEvents() {
         const battleScene = this.scene.get('BattleScene');
         if (!battleScene) return; 
 
+        // Limpeza de eventos antigos
+        battleScene.events.off('ui-enable-turn-button');
+        battleScene.events.off('ui-show-exit');
+
+        // Evento: Mostrar/Esconder botão de turno
         battleScene.events.on('ui-enable-turn-button', (isEnabled) => {
-            if (this.sys && this.btnEndTurn) this.btnEndTurn.setVisible(isEnabled);
+            this.btnEndTurn.setVisible(isEnabled);
         });
 
+        // Evento: Fim de Batalha -> Troca os botões
         battleScene.events.on('ui-show-exit', () => {
-            if (this.sys && this.btnEndTurn) this.btnEndTurn.setVisible(false);
-            if (this.sys && this.btnExitLevel) {
-                this.btnExitLevel.setVisible(true);
-                this.btnExitLevel.setInteractive();
-            }
+            this.btnEndTurn.setVisible(false);   // Esconde turno
+            this.btnExitLevel.setVisible(true);  // Mostra saída
         });
     }
 
@@ -137,15 +127,16 @@ export class UIScene extends Phaser.Scene {
         const battleScene = this.scene.get('BattleScene');
         if (!battleScene) return;
 
+        battleScene.events.off('ui-update-stats');
+        battleScene.events.off('ui-clear-stats');
+
         battleScene.events.on('ui-update-stats', (hero) => {
-            if (this.sys) {
-                this.updateStats(hero);
-                this.showPanel();
-            }
+            this.updateStats(hero);
+            this.showPanel();
         });
 
         battleScene.events.on('ui-clear-stats', () => {
-            if (this.sys) this.hidePanel();
+            this.hidePanel();
         });
     }
 
@@ -163,27 +154,26 @@ export class UIScene extends Phaser.Scene {
         this.exportContainer.setInteractive({ useHandCursor: true });
 
         this.exportContainer.on('pointerover', () => {
-            if (!this.sys) return;
             bg.setFillStyle(0x666666);
             const globalPos = this.exportContainer.getBounds();
             this.showTooltip(globalPos.centerX, globalPos.top - 5, "Salvar Card");
         });
 
         this.exportContainer.on('pointerout', () => {
-            if (this.sys) bg.setFillStyle(0x444444);
+            bg.setFillStyle(0x444444);
             this.hideTooltip();
         });
 
         this.exportContainer.on('pointerdown', () => {
-            if (this.sys) {
-                bg.setFillStyle(0x222222);
-                this.exportCurrentHero();
-            }
+            bg.setFillStyle(0x222222);
+            this.exportCurrentHero();
         });
+
+        this.exportContainer.on('pointerup', () => bg.setFillStyle(0x666666));
     }
 
     showPanel() {
-        if (!this.sys || this.isPanelVisible) return;
+        if (this.isPanelVisible) return;
         this.isPanelVisible = true;
         this.tweens.add({
             targets: this.panelContainer,
@@ -194,7 +184,7 @@ export class UIScene extends Phaser.Scene {
     }
 
     hidePanel() {
-        if (!this.sys || !this.isPanelVisible) return;
+        if (!this.isPanelVisible) return;
         this.isPanelVisible = false;
         this.hideTooltip();
         this.tweens.add({
@@ -206,8 +196,9 @@ export class UIScene extends Phaser.Scene {
     }
 
     updateStats(hero) {
-        if (!this.sys || !hero) return;
+        if (!hero) return;
         this.currentHeroData = hero;
+
         this.nameText.setText(hero.name);
         this.levelText.setText(`Nível ${hero.level || 1} - ${hero.classKey}`);
 
@@ -221,27 +212,36 @@ export class UIScene extends Phaser.Scene {
 
         const hpPercent = Phaser.Math.Clamp(hero.currentHp / hero.stats.hp, 0, 1);
         const mpPercent = Phaser.Math.Clamp(hero.currentMp / hero.stats.mp, 0, 1);
+
         this.tweens.add({ targets: this.hpBar, width: 200 * hpPercent, duration: 200 });
         this.mpBar.width = 200 * mpPercent;
+
         this.hpText.setText(`${Math.floor(hero.currentHp)}/${hero.stats.hp}`);
         this.mpText.setText(`${Math.floor(hero.currentMp)}/${hero.stats.mp}`);
 
-        this.statsText.setText(`STR: ${hero.stats.str}   DEF: ${hero.stats.def}\nINT: ${hero.stats.int}   RES: ${hero.stats.res}\nMOV: ${hero.mobility || 3}   RNG: ${hero.range || 1}`);
+        const stats = `STR: ${hero.stats.str}   DEF: ${hero.stats.def}\n` +
+                      `INT: ${hero.stats.int}   RES: ${hero.stats.res}\n` +
+                      `MOV: ${hero.mobility || 3}   RNG: ${hero.range || 1}`;
+        this.statsText.setText(stats);
     }
 
     showTooltip(x, y, text) {
-        if (!this.sys) return;
-        this.tooltip.setPosition(x, y).setText(text).setVisible(true);
+        this.tooltip.setPosition(x, y);
+        this.tooltip.setText(text);
+        this.tooltip.setVisible(true);
     }
 
     hideTooltip() {
-        if (this.tooltip) this.tooltip.setVisible(false);
+        this.tooltip.setVisible(false);
     }
 
     exportCurrentHero() {
         if (!this.currentHeroData) return;
         const mercSystem = new MercenarySystem(this);
         mercSystem.exportCharacter(this.currentHeroData);
-        this.tweens.add({ targets: this.exportContainer, alpha: 0.5, duration: 100, yoyo: true, repeat: 1 });
+        this.tweens.add({
+            targets: this.exportContainer,
+            alpha: 0.5, duration: 100, yoyo: true, repeat: 1
+        });
     }
 }
