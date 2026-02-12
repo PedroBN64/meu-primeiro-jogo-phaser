@@ -86,10 +86,10 @@ export const CLASSES = {
         baseStats: {
             hp: 80,
             mp: 40,
-            str: 4,
-            int: 2,
-            def: 3,
-            res: 3,
+            str: 40,
+            int: 20,
+            def: 30,
+            res: 30,
             spd: 6 // O mais rápido, ataca primeiro
         },
 

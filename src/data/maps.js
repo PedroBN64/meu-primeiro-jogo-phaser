@@ -1,37 +1,34 @@
-export const MAPAS = [
-    {
-        id: 0, 
-        nome: "Floresta Sombria", 
+export const MAPAS = {
+    'vila_map': {
+        nome: "Vila de Start",
         tipo: "BATALHA",
+        fundo: "piso", // Podemos mudar o chão dependendo do mapa
         inimigos: [
-            // Agora usamos apenas o ID que será buscado no monsters.js
-            { id: 'goblin', x: 5, y: 2 },
-            { id: 'goblin', x: 6, y: 1 } 
+            // CUIDADO: O 'id' aqui deve ser IGUAL à chave no monsters.js (ex: 'GOBLIN')
+            { monsterKey: 'GOBLIN', x: 5, y: 2 },
+            { monsterKey: 'GOBLIN', x: 6, y: 1 }
         ],
-        npcs: [], 
-        obstaculos: 3
+        obstaculos: [] // Lista de coordenadas {x,y} para pedras/arvores
     },
-    {
-        id: 1, 
-        nome: "Vila de Descanso", 
-        tipo: "PACIFICO",
-        inimigos: [],
-        npcs: [ 
-            { nome: "Curandeiro", x: 4, y: 3, fala: "Vou curar suas feridas, viajante." } 
-        ],
-        obstaculos: 0
-    },
-    {
-        id: 2, 
-        nome: "Caverna do Chefe", 
+    'bosque_map': {
+        nome: "Bosque Sombrio",
         tipo: "BATALHA",
+        fundo: "piso",
         inimigos: [
-            // Substituí o "Ogro" pelo "Orc Guerreiro" que criamos no exemplo do bestiário,
-            // ou você pode criar um 'ogro' no monsters.js depois.
-            { id: 'orc_guerreiro', x: 4, y: 1 }, 
-            { id: 'goblin', x: 2, y: 2 }
+            { monsterKey: 'ORC', x: 4, y: 3 }, // Era 'orc_guerreiro', mudei para 'ORC' para bater com monsters.js
+            { monsterKey: 'GOBLIN', x: 7, y: 4 }
         ],
-        npcs: [], 
-        obstaculos: 5
+        obstaculos: [{x: 3, y: 3}, {x: 4, y: 4}] // Exemplo de obstáculos
+    },
+    'torre_map': {
+        nome: "Torre do Mago",
+        tipo: "BATALHA",
+        fundo: "piso",
+        inimigos: [
+            { monsterKey: 'ORC', x: 8, y: 2 },
+            { monsterKey: 'ORC', x: 8, y: 5 },
+            { monsterKey: 'GOBLIN', x: 6, y: 3 }
+        ],
+        obstaculos: []
     }
-];
+};

@@ -1,7 +1,7 @@
 /**
  * ARQUIVO: src/systems/PartyManager.js
  * DESCRIÇÃO: Gerencia o grupo de heróis, contratações, mortes e seleção atual.
- * PADRÃO: Singleton (ou Classe Estática) para fácil acesso global.
+ * ATUALIZAÇÃO: Adicionado método clearParty() para permitir reiniciar o jogo.
  */
 
 export class PartyManager {
@@ -9,7 +9,7 @@ export class PartyManager {
         this.scene = scene;
         // Tenta recuperar dados salvos, ou cria uma lista vazia
         this.members = this.scene.registry.get('party') || [];
-        this.maxMembers = 4; // Limite de tamanho da party (comum em TRPGs)
+        this.maxMembers = 4; // Limite de tamanho da party
         this.selectedIndex = 0; // Quem está selecionado agora?
     }
 
@@ -47,6 +47,16 @@ export class PartyManager {
     }
 
     /**
+     * CORREÇÃO DO ERRO: Limpa o grupo (usado ao criar novo jogo)
+     */
+    clearParty() {
+        this.members = [];
+        this.selectedIndex = 0;
+        this.saveToRegistry();
+        console.log("[PartyManager] Grupo resetado com sucesso.");
+    }
+
+    /**
      * Retorna o membro atualmente selecionado (para exibir na UI)
      */
     getSelectedMember() {
@@ -54,13 +64,11 @@ export class PartyManager {
     }
 
     /**
-     * Seleciona um membro específico pelo índice ou ID
+     * Seleciona um membro específico pelo índice
      */
     selectMemberByIndex(index) {
         if (index >= 0 && index < this.members.length) {
             this.selectedIndex = index;
-            // Aqui futuramente emitiremos um evento para a UI atualizar
-            // this.scene.events.emit('ui-update-stats', this.getSelectedMember());
             return this.getSelectedMember();
         }
     }

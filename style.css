@@ -1,35 +1,55 @@
-/* * ARQUIVO: style.css
- * DESCRIÇÃO: Reset de estilos e posicionamento do canvas.
- */
+/* ARQUIVO: style.css */
 
+/* Garante que a página ocupe exatamente o tamanho da janela */
+html,
 body {
+  height: 100%;
+  width: 100%;
   margin: 0;
   padding: 0;
-  background-color: #1a1a1a; /* Cor de fundo escura para destacar o jogo */
+  background-color: #1a1a1a; /* Cor de fundo escura */
+  overflow: hidden; /* O SEGREDO: Impede o loop de redimensionamento e barras de rolagem */
+
+  /* Centraliza o container do jogo na tela */
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
-  overflow: hidden; /* Impede barras de rolagem */
 }
 
+/* Estilo do container onde o Phaser injeta o jogo */
 #game-container {
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-  border: 2px solid #444;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5); /* Sombra elegante */
+  border: 2px solid #444; /* Borda sutil */
+
+  /* Garante que o container não force o tamanho além da tela */
+  max-width: 100%;
+  max-height: 100%;
+  display: flex; /* Remove espaços extras em baixo do canvas */
 }
 
+/* Configurações específicas para o Canvas do Phaser */
 canvas {
-  /* Garante que o pixel art não fique borrado ao redimensionar */
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
+  display: block; /* Remove comportamentos estranhos de linha */
+
+  /* Garante que o pixel art fique nítido (não borrado) */
+  image-rendering: pixelated; /* Padrão moderno */
+  image-rendering: crisp-edges; /* Firefox */
+
+  /* Remove a borda azul de seleção ao clicar no jogo */
+  outline: none;
 }
 
+/* Estilos para Inputs HTML (ex: Nome do Personagem) */
 input {
   outline: none;
   border: 2px solid #444;
   border-radius: 5px;
-  font-family: "Verdana";
+  font-family: "Verdana", sans-serif;
+  padding: 5px;
+  background-color: #eee;
 }
+
 input:focus {
-  border-color: #ffff00;
+  border-color: #ffff00; /* Destaque amarelo ao digitar */
+  background-color: #fff;
 }

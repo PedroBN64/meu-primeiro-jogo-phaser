@@ -1,3 +1,9 @@
+/**
+ * ARQUIVO: src/scenes/CharacterScene.js
+ * DESCRIÇÃO: Criação de Personagem.
+ * CORREÇÃO: Tamanho do sprite ajustado e integração com PartyManager.
+ */
+
 import { CLASSES } from '../data/classes.js';
 import { Button } from '../components/Button.js';
 import { PartyManager } from '../systems/PartyManager.js';
@@ -8,144 +14,146 @@ export class CharacterScene extends Phaser.Scene {
     }
 
     preload() {
-        // --- 1. CARREGAMENTO AUTOMÁTICO DE SPRITES ---
-        // Percorremos nosso arquivo de classes para carregar as imagens
+        // Carregamento Automático de Sprites das Classes
         Object.keys(CLASSES).forEach(key => {
             const classe = CLASSES[key];
-            // Importante: O nome do arquivo na pasta assets deve bater com a lógica aqui
-            // Ex: Se no classes.js o sprite é 'img_guerreiro', o arquivo deve ser 'assets/guerreiro.png'
-            // Vou assumir que seus arquivos são: guerreiro.png, mago.png, etc.
+            // Remove o prefixo 'img_' para achar o arquivo (ex: 'img_guerreiro' -> 'guerreiro.png')
             const nomeArquivo = classe.sprite.replace('img_', '') + '.png';
             this.load.image(classe.sprite, `assets/${nomeArquivo}`);
         });
-
-        // Carrega uma imagem de UI para o fundo dos atributos (opcional, usarei cor sólida por enquanto)
     }
 
     create() {
         const { width, height } = this.scale;
         
-        // Estado atual da seleção (Padrão: GUERREIRO)
+        // Inicializa com Guerreiro
         this.selectedClassKey = 'GUERREIRO'; 
+        this.heroName = "Herói"; 
 
-        // --- TÍTULO ---
-        this.add.text(width / 2, 50, 'CRIE SEU HERÓI', {
-            fontSize: '32px', fontStyle: 'bold', fill: '#ffffff'
+        // Fundo
+        this.add.rectangle(0, 0, width, height, 0x2c3e50).setOrigin(0);
+
+        // TÍTULO
+        this.add.text(width / 2, 50, 'ESCOLHA SUA CLASSE', {
+            fontSize: '32px', fontStyle: 'bold', fill: '#f1c40f'
         }).setOrigin(0.5);
 
-        // --- ÁREA ESQUERDA: LISTA DE CLASSES (BOTÕES) ---
-        let yPos = 150;
+        // --- ÁREA ESQUERDA: BOTÕES DE CLASSE ---
+        let yPos = 120;
         Object.keys(CLASSES).forEach(key => {
             const classe = CLASSES[key];
             
-            // Cria um botão menor para cada classe
-            new Button(this, 200, yPos, classe.name, () => {
+            // Botão de seleção
+            new Button(this, 150, yPos, classe.name, () => {
                 this.updateSelection(key);
-            }, { width: 180, height: 40, fontSize: '16px' });
+            }, { width: 180, height: 40, fontSize: '18px', bgColor: 0x34495e });
             
-            yPos += 55; // Espaço entre os botões
+            yPos += 55;
         });
 
-        // --- ÁREA CENTRAL: PREVIEW DO PERSONAGEM ---
-        // Fundo do preview
-        this.add.rectangle(width / 2, height / 2 - 50, 200, 300, 0x222222).setStrokeStyle(2, 0x888888);
+        // --- ÁREA CENTRAL: PREVIEW ---
+        // Moldura
+        this.add.rectangle(width / 2, height / 2 - 20, 200, 200, 0x000000, 0.5).setStrokeStyle(2, 0xbdc3c7);
         
-        // Sprite do Personagem (Começa com o Guerreiro)
-        this.heroSprite = this.add.image(width / 2, height / 2 - 80, CLASSES.GUERREIRO.sprite);
-        this.heroSprite.setScale(4); // Aumenta o Pixel Art para ficar visível (4x)
+        // Sprite do Personagem
+        this.heroSprite = this.add.image(width / 2, height / 2 - 40, CLASSES.GUERREIRO.sprite);
+        
+        // --- CORREÇÃO DO ZOOM ---
+        // Reduzido de 6 para 3. Se ainda ficar grande, tente 2.
+        this.heroSprite.setScale(3); 
+        this.heroSprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST); // Pixel art nítido
 
-        // --- INPUT DE NOME (DOM ELEMENT) ---
-        // Criamos um input HTML real posicionado sobre o jogo
-        this.nameInput = this.add.dom(width / 2, height / 2 + 50).createFromHTML(`
-            <input type="text" name="heroName" placeholder="Digite o nome..." 
-            style="font-size: 20px; width: 180px; padding: 5px; text-align: center; color: black;">
-        `);
-        // Focamos no input para facilitar
-        this.nameInput.addListener('click'); 
+        // --- NOME DO PERSONAGEM ---
+        this.nameLabel = this.add.text(width / 2, height / 2 + 100, `Nome: ${this.heroName}`, {
+            fontSize: '24px', fill: '#fff'
+        }).setOrigin(0.5);
 
-        // --- ÁREA DIREITA: ATRIBUTOS E DESCRIÇÃO ---
-        this.descText = this.add.text(width - 300, 150, '', {
-            fontSize: '14px', fill: '#cccccc', wordWrap: { width: 250 }
-        });
+        new Button(this, width / 2, height / 2 + 140, 'ALTERAR NOME', () => {
+            // Usa prompt nativo para evitar erro de DOM
+            const novoNome = prompt("Digite o nome do seu herói:", this.heroName);
+            if (novoNome && novoNome.trim() !== "") {
+                this.heroName = novoNome.trim();
+                this.nameLabel.setText(`Nome: ${this.heroName}`);
+            }
+        }, { width: 160, height: 30, fontSize: '12px', bgColor: 0x7f8c8d });
 
-        this.statsText = this.add.text(width - 300, 250, '', {
-            fontSize: '16px', fill: '#ffffff', lineHeight: 24
-        });
 
-        // --- BOTÃO DE CONFIRMAR ---
-        new Button(this, width / 2, height - 80, 'INICIAR JORNADA', () => {
+        // --- ÁREA DIREITA: INFO ---
+        this.descText = this.add.text(width - 250, 150, '', {
+            fontSize: '14px', fill: '#bdc3c7', wordWrap: { width: 200 }, align: 'center'
+        }).setOrigin(0.5, 0);
+
+        this.statsText = this.add.text(width - 250, 250, '', {
+            fontSize: '16px', fill: '#ecf0f1', lineHeight: 28, fontFamily: 'Courier New'
+        }).setOrigin(0.5, 0);
+
+        // --- RODAPÉ: BOTÃO INICIAR ---
+        new Button(this, width / 2, height - 60, 'INICIAR AVENTURA', () => {
             this.confirmCreation();
-        }, { width: 250, height: 60, bgColor: 0x2ecc71, bgHover: 0x27ae60 });
+        }, { width: 250, height: 50, bgColor: 0x27ae60, bgHover: 0x2ecc71 });
 
-        // Inicializa a tela com os dados do Guerreiro
+        // Atualiza primeira vez
         this.updateSelection('GUERREIRO');
     }
 
-    /**
-     * Atualiza a tela quando o jogador clica em uma classe
-     */
     updateSelection(key) {
         this.selectedClassKey = key;
         const data = CLASSES[key];
 
-        // 1. Troca a imagem
         this.heroSprite.setTexture(data.sprite);
+        this.descText.setText(data.description || "Um bravo guerreiro.");
 
-        // 2. Atualiza Descrição
-        this.descText.setText(data.description);
-
-        // 3. Atualiza Texto de Status
-        // Dica de Mentor: Usamos template literals (``) para formatar bonito
-        this.statsText.setText(`
-        VIDA (HP): ${data.baseStats.hp}
-        MANA (MP): ${data.baseStats.mp}
-        FORÇA:     ${data.baseStats.str}
-        INTEL:     ${data.baseStats.int}
-        DEFESA:    ${data.baseStats.def}
-        VELOC:     ${data.baseStats.spd}
-        `);
+        const s = data.baseStats;
+        this.statsText.setText(
+            `HP:  ${s.hp}\n` +
+            `MP:  ${s.mp}\n` +
+            `STR: ${s.str}\n` +
+            `DEF: ${s.def}\n` +
+            `SPD: ${s.spd}`
+        );
     }
 
-    /**
-     * Valida e salva os dados antes de ir para o jogo
-     */
     confirmCreation() {
-        const inputElement = this.nameInput.getChildByName('heroName');
-        const nomeDigitado = inputElement.value.trim();
+        console.log(`[CharacterScene] Criando: ${this.heroName} (${this.selectedClassKey})`);
 
-        if (nomeDigitado === "") {
-            alert("Por favor, dê um nome ao seu herói!");
-            return;
-        }
-
-        // Prepara os dados brutos
         const classData = CLASSES[this.selectedClassKey];
+        
         const heroData = {
-            name: nomeDigitado,
+            name: this.heroName,
             classKey: this.selectedClassKey,
+            sprite: classData.sprite, 
+            
             stats: { ...classData.baseStats },
             growth: { ...classData.growth },
-            equipment: { ...classData.startEquipment },
-            mobility: classData.mobility, // Copia quanto ele anda
-            range: classData.range,       // Copia o alcance do ataque
+            
             currentHp: classData.baseStats.hp,
             currentMp: classData.baseStats.mp,
+            
             level: 1,
             exp: 0,
-            xpToNext: 100
+            xpToNext: 100,
+            
+            mobility: classData.mobility || 3,
+            range: classData.range || 1,
+            equipment: { ...classData.startEquipment }
         };
 
-        // --- MUDANÇA AQUI: USA O PARTY MANAGER ---
-        // Instancia o gerenciador (ele vai ler o registry atual, que deve estar vazio)
+        // Instancia o PartyManager (Agora com o método clearParty funcional)
         const partyManager = new PartyManager(this);
         
-        // Adiciona nosso herói recém-criado
+        // Limpa qualquer dado antigo antes de começar
+        partyManager.clearParty(); 
+        
+        // Adiciona o novo herói
         partyManager.addMember(heroData);
 
-        // Feedback visual
-        console.log("Grupo Inaugurado:", partyManager.getAllMembers());
+        // Define o local inicial
+        this.registry.set('currentLocationId', 'VILA_INICIAL');
 
-        // Vai para a cena de Batalha (ou Mapa)
-        this.scene.start('BattleScene');
+        // Transição
+        this.cameras.main.fadeOut(500);
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+            this.scene.start('WorldMapScene');
+        });
     }
 }
